@@ -1,50 +1,39 @@
-# File: live_preview.py
-
-from picamera2 import Picamera2
+import signal
+import sys
 import cv2
-import time
+from picamera2 import Picamera2
 
-# --- Configuration ---
-RESOLUTION = (1280, 720) # Standard HD resolution for the preview window
-# Use an RGB format for display with OpenCV
-FORMAT = "RGB888"
-
-print("Initializing Pi Camera for Live Video...")
 picam2 = Picamera2()
 
-# Configure the camera for continuous preview mode
-picam2.preview_configuration.main.size = RESOLUTION
-picam2.preview_configuration.main.format = FORMAT
-picam2.configure("preview")
+def cleanup_and_exit():
+    print('\n[SYSTEM] Releasing camera...')
+    picam2.stop()
+    picam2.close() # Prevents "Device or resource busy"
+    cv2.destroyAllWindows()
+    sys.exit(0)
 
-print("Starting camera stream...")
-picam2.start()
-time.sleep(0.3)  # Short warm-up for stabilization
+def signal_handler(sig, frame):
+    cleanup_and_exit()
 
-print("\nPress 'q' or ESC in the preview window to stop the stream.")
+signal.signal(signal.SIGINT, signal_handler)
 
 try:
+    config = picam2.create_preview_configuration(main={"format": "RGB888", "size": (640, 480)})
+    picam2.configure(config)
+    picam2.start()
+    print("Live Stream Starting on VNC Desktop...")
+
     while True:
-        # 1. Capture a frame from the stream as a NumPy array
         frame = picam2.capture_array()
-
-        # 2. Display the frame in an OpenCV window
-        # OpenCV expects BGR, but picamera2 gives RGB, so we convert it for correct color
-        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        cv2.imshow("Live Video Feed (PiCamera2)", frame_bgr)
-
-        # 3. Check for the 'q' key press or ESC key to exit the loop
-        # waitKey(1) makes the window responsive for 1 millisecond
-        key = cv2.waitKey(1)
-        if key == ord('q') or key == 27: # 27 is the ASCII code for ESC
+        
+        # --- THIS LINE MUST BE UNCOMMENTED FOR LIVE VIEW ---
+        cv2.imshow("Pi Camera Live Feed", frame)
+        
+        # Press 'q' on the video window to stop
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-except KeyboardInterrupt:
-    # Allows stopping the script by pressing Ctrl+C in the terminal
-    pass
-
-# --- Cleanup ---
-print("\nStopping camera stream and closing window.")
-picam2.stop()
-cv2.destroyAllWindows()
-print("Done.")
+except Exception as e:
+    print(f"Error: {e}")
+finally:
+    cleanup_and_exit() # Ensures consistency
