@@ -1,3 +1,4 @@
+#git clone https://github.com/Majdawad88/live_camera.git
 import signal
 import sys
 import cv2
